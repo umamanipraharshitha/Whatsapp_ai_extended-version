@@ -1,98 +1,113 @@
 // src/services/vectorStore.js
-import { ChromaClient } from "chromadb";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { v5 as uuidv5 } from "uuid";
 
-let clientOptions = {};
-const chromaUrlStr = process.env.CHROMA_URL;
+const client = new QdrantClient({
+  url: process.env.QDRANT_URL?.trim(),
+  apiKey: process.env.QDRANT_API_KEY?.trim(),
+});
 
-if (chromaUrlStr) {
+// A fixed UUID namespace to deterministically generate UUIDs from Chroma-style string IDs.
+const UUID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+
+/**
+ * Ensures the specified Qdrant collection exists.
+ */
+async function ensureCollection(collectionName, vectorSize = 768) {
   try {
-    const parsed = new URL(chromaUrlStr);
-    clientOptions.host = parsed.hostname;
-    clientOptions.port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === "https:" ? 443 : 80);
-    if (parsed.protocol === "https:") {
-      clientOptions.ssl = true;
+    const collections = await client.getCollections();
+    const exists = collections.collections.some(c => c.name === collectionName);
+    if (!exists) {
+      console.log(`Creating Qdrant collection: "${collectionName}" with vector size ${vectorSize}...`);
+      await client.createCollection(collectionName, {
+        vectors: {
+          size: vectorSize,
+          distance: "Cosine",
+        },
+      });
     }
   } catch (err) {
-    clientOptions.path = chromaUrlStr;
+    console.error(`❌ Error ensuring collection ${collectionName} in Qdrant:`, err);
+    throw err;
   }
-} else {
-  clientOptions.host = "localhost";
-  clientOptions.port = 8000;
 }
-
-const client = new ChromaClient(clientOptions);
 
 export async function addToCollection(collectionName, item) {
   try {
-    const collection = await client.getOrCreateCollection({
-      name: collectionName,
-    });
-    
     // Ensure embedding is a 1D array of numbers
     const flatEmbedding = Array.isArray(item.embedding)
       ? item.embedding.map(Number)
       : [];
 
-    await collection.add({
-      ids: [item.id],
-      embeddings: [flatEmbedding],
-      documents: [item.text]
+    await ensureCollection(collectionName, flatEmbedding.length || 768);
+
+    // Convert string ID to UUID v5 consistently
+    const qdrantId = uuidv5(item.id, UUID_NAMESPACE);
+
+    await client.upsert(collectionName, {
+      wait: true,
+      points: [
+        {
+          id: qdrantId,
+          vector: flatEmbedding,
+          payload: {
+            originalId: item.id,
+            text: item.text
+          }
+        }
+      ]
     });
   } catch (err) {
-    console.error(`❌ Error adding document ${item.id} to ChromaDB:`, err);
+    console.error(`❌ Error adding document ${item.id} to Qdrant:`, err);
     throw err;
   }
 }
 
 export async function searchCollection(collectionName, queryEmbedding, topK = 3) {
   try {
-    const collection = await client.getOrCreateCollection({
-      name: collectionName,
-    });
-
     const flatQueryEmbedding = Array.isArray(queryEmbedding)
       ? queryEmbedding.map(Number)
       : [];
 
-    const results = await collection.query({
-      queryEmbeddings: [flatQueryEmbedding],
-      nResults: topK
+    await ensureCollection(collectionName, flatQueryEmbedding.length || 768);
+
+    const results = await client.search(collectionName, {
+      vector: flatQueryEmbedding,
+      limit: topK,
     });
 
-    if (!results || !results.ids || !results.ids[0] || results.ids[0].length === 0) {
+    if (!results || results.length === 0) {
       return [];
     }
 
-    const formatted = [];
-    for (let i = 0; i < results.ids[0].length; i++) {
-      formatted.push({
-        id: results.ids[0][i],
-        text: results.documents[0][i] || "",
-        score: results.distances ? (1 - results.distances[0][i]).toFixed(3) : "1.000"
-      });
-    }
-
-    return formatted;
+    return results.map(r => ({
+      id: r.payload?.originalId || r.id.toString(),
+      text: r.payload?.text || "",
+      score: r.score ? r.score.toFixed(3) : "1.000"
+    }));
   } catch (err) {
-    console.error(`❌ Error querying collection ${collectionName} in ChromaDB:`, err);
+    console.error(`❌ Error querying collection ${collectionName} in Qdrant:`, err);
     return [];
   }
 }
 
 export async function getOrCreateCollectionDocs(collectionName) {
   try {
-    const collection = await client.getOrCreateCollection({
-      name: collectionName,
+    await ensureCollection(collectionName, 768);
+
+    const response = await client.scroll(collectionName, {
+      limit: 100,
+      with_payload: true,
     });
-    const all = await collection.get();
-    if (!all || !all.ids) return [];
-    
-    return all.ids.map((id, index) => ({
-      id,
-      text: all.documents[index] || ""
+
+    if (!response || !response.points) return [];
+
+    return response.points.map(p => ({
+      id: p.payload?.originalId || p.id.toString(),
+      text: p.payload?.text || ""
     }));
   } catch (err) {
-    console.error(`❌ Error getting docs for collection ${collectionName} in ChromaDB:`, err);
+    console.error(`❌ Error getting docs for collection ${collectionName} in Qdrant:`, err);
     return [];
   }
 }
