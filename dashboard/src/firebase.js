@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyD5lB2RyH33351oWbTkUw9y8AKUzrL3fdY",
-    authDomain: "aplora-c82d6.firebaseapp.com",
-    projectId: "aplora-c82d6",
-    storageBucket: "aplora-c82d6.firebasestorage.app",
-    messagingSenderId: "695834838262",
-    appId: "1:695834838262:web:4b93af5f05fe3cdd7758d7",
-    measurementId: "G-NMQB864GBT"
+    apiKey: "AIzaSyAzti1xpHJ-ppUNc4llnsp8301FckyU7Vo",
+    authDomain: "chatbot-d7c86.firebaseapp.com",
+    projectId: "chatbot-d7c86",
+    storageBucket: "chatbot-d7c86.firebasestorage.app",
+    messagingSenderId: "906537789585",
+    appId: "1:906537789585:web:f7b674d19367760e427730",
+    measurementId: "G-36JTJ81498"
 };
 
 const app = initializeApp(firebaseConfig);
