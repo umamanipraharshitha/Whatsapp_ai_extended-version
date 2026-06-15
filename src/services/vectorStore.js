@@ -1,9 +1,26 @@
 // src/services/vectorStore.js
 import { ChromaClient } from "chromadb";
 
-const client = new ChromaClient({
-  path: process.env.CHROMA_URL || "http://localhost:8000"
-});
+let clientOptions = {};
+const chromaUrlStr = process.env.CHROMA_URL;
+
+if (chromaUrlStr) {
+  try {
+    const parsed = new URL(chromaUrlStr);
+    clientOptions.host = parsed.hostname;
+    clientOptions.port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === "https:" ? 443 : 80);
+    if (parsed.protocol === "https:") {
+      clientOptions.ssl = true;
+    }
+  } catch (err) {
+    clientOptions.path = chromaUrlStr;
+  }
+} else {
+  clientOptions.host = "localhost";
+  clientOptions.port = 8000;
+}
+
+const client = new ChromaClient(clientOptions);
 
 export async function addToCollection(collectionName, item) {
   try {
