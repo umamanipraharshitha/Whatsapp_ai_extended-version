@@ -203,7 +203,7 @@ app.post("/whatsapp", async (req, res) => {
             id: `${docId}_${i}`,
             text: chunks[i],
             embedding
-          });
+          }, From);
         }
 
         await sendWhatsApp({
@@ -223,8 +223,8 @@ app.post("/whatsapp", async (req, res) => {
         const [queryEmbedding] = await embedText([text]);
         
         // Hybrid retrieval: Semantic + Keyword
-        const semResults = await searchCollection("medical_docs", queryEmbedding, 5);
-        const col = await getOrCreateCollectionDocs("medical_docs");
+        const semResults = await searchCollection("medical_docs", queryEmbedding, 5, From);
+        const col = await getOrCreateCollectionDocs("medical_docs", From);
         const keywordDocs = col.filter(item => item.text.toLowerCase().includes(text.toLowerCase()));
         
         // Merge & deduplicate

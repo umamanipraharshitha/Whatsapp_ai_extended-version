@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc } from "firebase/firestore";
 import "./AdminDashboard.css";
 
 const AdminDashboard = () => {
@@ -15,6 +15,7 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [tierFilter, setTierFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [newPhoneNumber, setNewPhoneNumber] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -83,6 +84,37 @@ const AdminDashboard = () => {
       } catch (err) {
         alert("Failed to delete user: " + err.message);
       }
+    }
+  };
+
+  const handleRegisterPremium = async (e) => {
+    e.preventDefault();
+    const formattedNumber = newPhoneNumber.trim();
+    if (!formattedNumber) return;
+
+    try {
+      const userRef = doc(db, "whatsapp_users", formattedNumber);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        await updateDoc(userRef, { tier: "paid" });
+        alert(`Successfully upgraded ${formattedNumber} to Premium (Paid).`);
+      } else {
+        const defaultData = {
+          id: formattedNumber,
+          tier: "paid",
+          messageCount: 0,
+          mode: null,
+          meds: [],
+          reminders: [],
+          updatedAt: new Date().toISOString()
+        };
+        await setDoc(userRef, defaultData);
+        alert(`Successfully registered ${formattedNumber} as a Premium (Paid) user.`);
+      }
+      setNewPhoneNumber("");
+    } catch (err) {
+      alert("Failed to register premium number: " + err.message);
     }
   };
 
@@ -211,6 +243,23 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Manual Premium User Registration */}
+      <section className="registration-section">
+        <div className="registration-card">
+          <h2>Register Premium Number</h2>
+          <form onSubmit={handleRegisterPremium} className="registration-form">
+            <input
+              type="text"
+              placeholder="e.g. whatsapp:+919876543210"
+              value={newPhoneNumber}
+              onChange={(e) => setNewPhoneNumber(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn-register">Register Number</button>
+          </form>
         </div>
       </section>
 

@@ -32,7 +32,7 @@ async function ensureCollection(collectionName, vectorSize = 768) {
   }
 }
 
-export async function addToCollection(collectionName, item) {
+export async function addToCollection(collectionName, item, userId) {
   try {
     // Ensure embedding is a 1D array of numbers
     const flatEmbedding = Array.isArray(item.embedding)
@@ -52,7 +52,8 @@ export async function addToCollection(collectionName, item) {
           vector: flatEmbedding,
           payload: {
             originalId: item.id,
-            text: item.text
+            text: item.text,
+            userId: userId
           }
         }
       ]
@@ -63,7 +64,7 @@ export async function addToCollection(collectionName, item) {
   }
 }
 
-export async function searchCollection(collectionName, queryEmbedding, topK = 3) {
+export async function searchCollection(collectionName, queryEmbedding, topK = 3, userId) {
   try {
     const flatQueryEmbedding = Array.isArray(queryEmbedding)
       ? queryEmbedding.map(Number)
@@ -71,10 +72,26 @@ export async function searchCollection(collectionName, queryEmbedding, topK = 3)
 
     await ensureCollection(collectionName, flatQueryEmbedding.length || 768);
 
-    const results = await client.search(collectionName, {
+    const searchParams = {
       vector: flatQueryEmbedding,
       limit: topK,
-    });
+    };
+
+    // Apply strict user filtration if userId is provided
+    if (userId) {
+      searchParams.filter = {
+        must: [
+          {
+            key: "userId",
+            match: {
+              value: userId,
+            },
+          },
+        ],
+      };
+    }
+
+    const results = await client.search(collectionName, searchParams);
 
     if (!results || results.length === 0) {
       return [];
@@ -91,14 +108,30 @@ export async function searchCollection(collectionName, queryEmbedding, topK = 3)
   }
 }
 
-export async function getOrCreateCollectionDocs(collectionName) {
+export async function getOrCreateCollectionDocs(collectionName, userId) {
   try {
     await ensureCollection(collectionName, 768);
 
-    const response = await client.scroll(collectionName, {
+    const scrollParams = {
       limit: 100,
       with_payload: true,
-    });
+    };
+
+    // Apply strict user filtration if userId is provided
+    if (userId) {
+      scrollParams.filter = {
+        must: [
+          {
+            key: "userId",
+            match: {
+              value: userId,
+            },
+          },
+        ],
+      };
+    }
+
+    const response = await client.scroll(collectionName, scrollParams);
 
     if (!response || !response.points) return [];
 
