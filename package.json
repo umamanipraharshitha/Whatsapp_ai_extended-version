@@ -1,0 +1,27 @@
+{
+  "name": "gemini-rag-whatsapp",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "ingest": "node src/ingestion/ingest.js"
+  },
+  "dependencies": {
+    "@chroma-core/default-embed": "^0.1.8",
+    "@google/genai": "^1.21.0",
+    "@google/generative-ai": "^0.24.1",
+    "@xenova/transformers": "^2.17.2",
+    "body-parser": "^1.20.2",
+    "bull": "^4.16.5",
+    "bullmq": "^1.67.0",
+    "chromadb": "^3.0.15",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "ioredis": "^5.3.2",
+    "node-fetch": "^3.3.2",
+    "node-schedule": "^2.1.1",
+    "twilio": "^4.6.0",
+    "uuid": "^9.0.0",
+    "firebase": "^10.8.0"
+  }
+}
