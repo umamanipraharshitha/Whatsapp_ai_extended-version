@@ -10,3 +10,7 @@ node_modules/
 # Optional: Logs
 logs/
 *.log
+.env
+.env.local
+.env.*
+node_modules/
