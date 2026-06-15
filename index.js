@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config(); // Load .env first
+import "dotenv/config";
 
 import express from "express";
 import bodyParser from "body-parser";

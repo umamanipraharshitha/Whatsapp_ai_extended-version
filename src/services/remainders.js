@@ -5,8 +5,6 @@ import { removeReminder } from "./medstore.js";
 import { sendWhatsApp } from "./whatsapp.js";
 const redisUrl = process.env.REDIS_URL?.trim();
 
-console.log("REDIS_URL =", redisUrl);
-
 const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
 });
@@ -25,7 +23,7 @@ export async function startReminderWorker() {
     async (job) => {
       const { to, text } = job.data;
       console.log(`⏰ [BullMQ] Reminder fired for ${to}: "${text}"`);
-      
+
       // Send message
       await sendWhatsApp({ to, text });
 
@@ -56,19 +54,19 @@ export async function scheduleMedicationReminder({ to, text, sendAt, cron, meta 
     if (sendAt) {
       const delay = Math.max(0, new Date(sendAt).getTime() - Date.now());
       console.log(`⏱️ Queuing delayed job for ${to} in ${delay}ms`);
-      
+
       const job = await reminderQueue.add(
         "reminder-job",
         { to, text },
         { delay, jobId }
       );
-      
+
       return { jobId: job.id, type: "once", sendAt };
     }
 
     if (cron) {
       console.log(`⏱️ Queuing repeatable cron job for ${to}: "${cron}"`);
-      
+
       const job = await reminderQueue.add(
         "reminder-job",
         { to, text },
@@ -77,7 +75,7 @@ export async function scheduleMedicationReminder({ to, text, sendAt, cron, meta 
           jobId
         }
       );
-      
+
       return { jobId: job.id, type: "cron", cron };
     }
   } catch (err) {
