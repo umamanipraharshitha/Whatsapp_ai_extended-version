@@ -1,4 +1,5 @@
 // src/services/vectorStore.js
+
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { v5 as uuidv5 } from "uuid";
 
@@ -7,19 +8,22 @@ const client = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY?.trim(),
 });
 
-// A fixed UUID namespace to deterministically generate UUIDs from Chroma-style string IDs.
+// Fixed UUID namespace
 const UUID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
 /**
- * Ensures the specified Qdrant collection exists.
+ * Ensures collection and payload index exist
  */
 async function ensureCollection(collectionName, vectorSize = 768) {
   try {
     const collections = await client.getCollections();
-    const exists = collections.collections.some(c => c.name === collectionName);
+
+    const exists = collections.collections.some(
+      (c) => c.name === collectionName
+    );
 
     if (!exists) {
-      console.log(`Creating Qdrant collection: "${collectionName}"`);
+      console.log(`🆕 Creating Qdrant collection: ${collectionName}`);
 
       await client.createCollection(collectionName, {
         vectors: {
@@ -28,30 +32,49 @@ async function ensureCollection(collectionName, vectorSize = 768) {
         },
       });
 
-      // 🔥 ADD THIS: create index for filtering
+      console.log(`✅ Collection created: ${collectionName}`);
+    }
+
+    // Always try to create index
+    try {
       await client.createPayloadIndex(collectionName, {
         field_name: "userId",
         field_schema: "keyword",
       });
 
-      console.log(`Created index for userId in ${collectionName}`);
+      console.log(`✅ userId payload index ensured`);
+    } catch (indexErr) {
+      console.log(
+        `ℹ️ userId index already exists or could not be recreated`
+      );
     }
   } catch (err) {
-    console.error(`❌ Error ensuring collection ${collectionName}:`, err);
+    console.error(
+      `❌ Error ensuring collection ${collectionName}:`,
+      err
+    );
     throw err;
   }
 }
 
-export async function addToCollection(collectionName, item, userId) {
+/**
+ * Add document
+ */
+export async function addToCollection(
+  collectionName,
+  item,
+  userId
+) {
   try {
-    // Ensure embedding is a 1D array of numbers
     const flatEmbedding = Array.isArray(item.embedding)
       ? item.embedding.map(Number)
       : [];
 
-    await ensureCollection(collectionName, flatEmbedding.length || 768);
+    await ensureCollection(
+      collectionName,
+      flatEmbedding.length || 768
+    );
 
-    // Convert string ID to UUID v5 consistently
     const qdrantId = uuidv5(item.id, UUID_NAMESPACE);
 
     await client.upsert(collectionName, {
@@ -63,31 +86,49 @@ export async function addToCollection(collectionName, item, userId) {
           payload: {
             originalId: item.id,
             text: item.text,
-            userId: userId
-          }
-        }
-      ]
+            userId: userId || "default",
+          },
+        },
+      ],
     });
+
+    console.log(
+      `✅ Added document ${item.id} to ${collectionName}`
+    );
   } catch (err) {
-    console.error(`❌ Error adding document ${item.id} to Qdrant:`, err);
+    console.error(
+      `❌ Error adding document ${item.id} to Qdrant:`,
+      err
+    );
     throw err;
   }
 }
 
-export async function searchCollection(collectionName, queryEmbedding, topK = 3, userId) {
+/**
+ * Search collection
+ */
+export async function searchCollection(
+  collectionName,
+  queryEmbedding,
+  topK = 3,
+  userId
+) {
   try {
     const flatQueryEmbedding = Array.isArray(queryEmbedding)
       ? queryEmbedding.map(Number)
       : [];
 
-    await ensureCollection(collectionName, flatQueryEmbedding.length || 768);
+    await ensureCollection(
+      collectionName,
+      flatQueryEmbedding.length || 768
+    );
 
     const searchParams = {
       vector: flatQueryEmbedding,
       limit: topK,
+      with_payload: true,
     };
 
-    // Apply strict user filtration if userId is provided
     if (userId) {
       searchParams.filter = {
         must: [
@@ -101,33 +142,45 @@ export async function searchCollection(collectionName, queryEmbedding, topK = 3,
       };
     }
 
-    const results = await client.search(collectionName, searchParams);
+    const results = await client.search(
+      collectionName,
+      searchParams
+    );
 
-    if (!results || results.length === 0) {
+    if (!results?.length) {
       return [];
     }
 
-    return results.map(r => ({
-      id: r.payload?.originalId || r.id.toString(),
+    return results.map((r) => ({
+      id: r.payload?.originalId || String(r.id),
       text: r.payload?.text || "",
-      score: r.score ? r.score.toFixed(3) : "1.000"
+      score: r.score || 0,
     }));
   } catch (err) {
-    console.error(`❌ Error querying collection ${collectionName} in Qdrant:`, err);
+    console.error(
+      `❌ Error querying collection ${collectionName} in Qdrant:`,
+      err
+    );
     return [];
   }
 }
 
-export async function getOrCreateCollectionDocs(collectionName, userId) {
+/**
+ * Get all docs
+ */
+export async function getOrCreateCollectionDocs(
+  collectionName,
+  userId
+) {
   try {
-    await ensureCollection(collectionName, 768);
+    await ensureCollection(collectionName);
 
     const scrollParams = {
       limit: 100,
       with_payload: true,
+      with_vector: false,
     };
 
-    // Apply strict user filtration if userId is provided
     if (userId) {
       scrollParams.filter = {
         must: [
@@ -141,16 +194,24 @@ export async function getOrCreateCollectionDocs(collectionName, userId) {
       };
     }
 
-    const response = await client.scroll(collectionName, scrollParams);
+    const response = await client.scroll(
+      collectionName,
+      scrollParams
+    );
 
-    if (!response || !response.points) return [];
+    if (!response?.points?.length) {
+      return [];
+    }
 
-    return response.points.map(p => ({
-      id: p.payload?.originalId || p.id.toString(),
-      text: p.payload?.text || ""
+    return response.points.map((p) => ({
+      id: p.payload?.originalId || String(p.id),
+      text: p.payload?.text || "",
     }));
   } catch (err) {
-    console.error(`❌ Error getting docs for collection ${collectionName} in Qdrant:`, err);
+    console.error(
+      `❌ Error getting docs for collection ${collectionName} in Qdrant:`,
+      err
+    );
     return [];
   }
 }
