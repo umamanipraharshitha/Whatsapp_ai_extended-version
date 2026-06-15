@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "ingest": "node src/ingestion/ingest.js"
+    "ingest": "node src/ingestion/ingest.js",
+    "simulate:whatsapp": "node src/simulate/whatsappSim.js"
   },
   "dependencies": {
     "@chroma-core/default-embed": "^0.1.8",

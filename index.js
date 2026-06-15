@@ -4,9 +4,11 @@ import express from "express";
 import bodyParser from "body-parser";
 import fetch from "node-fetch";
 
+import { initEmbedder } from "./src/services/embedder.js";
 import { embedText } from "./src/services/embedder.js";
 import { searchCollection, getOrCreateCollectionDocs, addToCollection } from "./src/services/vectorStore.js";
 import { callGemini } from "./src/services/geminiClient.js";
+import { ingestDocument, queryDocuments, generalChat } from "./src/services/ingestService.js";
 
 import { parseMedicationRequest, buildCronFromParts } from "./src/services/nlpHelpers.js";
 import { startReminderWorker, scheduleMedicationReminder, cancelReminder } from "./src/services/remainders.js";
@@ -26,6 +28,15 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// CORS for web dashboard (Twilio-free alternative)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Initialize Gemini SDK client for Vision/OCR ingestion
@@ -37,6 +48,9 @@ const ai = new GoogleGenAI({
  * Start reminder worker
  */
 startReminderWorker();
+
+// Pre-load embedding model on startup
+initEmbedder().catch((err) => console.error("❌ Failed to init embedder:", err));
 
 // --- Chunking helper ---
 function chunkText(text, chunkSize = 200) {
@@ -106,6 +120,53 @@ async function extractTextFromMedia(url, contentType) {
     throw err;
   }
 }
+
+/**
+ * Web API — works without Twilio (use the dashboard instead)
+ */
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, message: "Health AI backend is running" });
+});
+
+app.post("/api/ingest", async (req, res) => {
+  try {
+    const { text, userId = "web_user" } = req.body;
+    const result = await ingestDocument(text, userId);
+    res.json({
+      ok: true,
+      message: `Ingestion successful! Document chunked into ${result.chunkCount} segments.`,
+      ...result,
+    });
+  } catch (err) {
+    console.error("❌ /api/ingest error:", err);
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/query", async (req, res) => {
+  try {
+    const { question, userId = "web_user" } = req.body;
+    const result = await queryDocuments(question, userId);
+    if (!result.answer) {
+      return res.status(404).json({ ok: false, message: result.message });
+    }
+    res.json({ ok: true, answer: result.answer, sources: result.sources });
+  } catch (err) {
+    console.error("❌ /api/query error:", err);
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message } = req.body;
+    const result = await generalChat(message);
+    res.json({ ok: true, answer: result.answer });
+  } catch (err) {
+    console.error("❌ /api/chat error:", err);
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
 
 /**
  * WhatsApp webhook
@@ -425,5 +486,8 @@ app.post("/whatsapp", async (req, res) => {
  * Start server
  */
 app.listen(PORT, () =>
-  console.log(`🚀 WhatsApp AI multi-mode backend running on port ${PORT}`)
+  console.log(`🚀 Health AI backend running on port ${PORT}`)
+  + `\n   Web API:  http://localhost:${PORT}/api/health`
+  + `\n   WhatsApp: http://localhost:${PORT}/whatsapp`
+  + (process.env.MOCK_WHATSAPP === "true" ? " (MOCK mode — no real Twilio sends)" : " (requires Twilio)")
 );

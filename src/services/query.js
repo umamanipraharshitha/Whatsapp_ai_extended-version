@@ -8,7 +8,7 @@ async function query() {
   console.log("🔎 Query:", queryText);
 
   const [queryEmbedding] = await embedText([queryText]);
-  const results = searchCollection("docs", queryEmbedding);
+  const results = await searchCollection("medical_docs", queryEmbedding);
 
   console.log("\n💡 Top Matches:");
   results.forEach((r, i) => {
