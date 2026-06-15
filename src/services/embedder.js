@@ -16,17 +16,17 @@ export async function initEmbedder() {
 
 export async function embedText(textArray) {
   if (!localEmbedder) await initEmbedder();
-
   const embeddings = [];
 
   for (const text of textArray) {
+    // Pass pooling options directly — the pipeline handles mean pooling for you
     const output = await localEmbedder(text, {
       pooling: "mean",
-      normalize: true
+      normalize: true,
     });
 
+    // output is now { data: Float32Array, dims: [1, dim] } after pooling
     const embedding = Array.from(output.data);
-
     embeddings.push(embedding);
   }
 
