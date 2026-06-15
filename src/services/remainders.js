@@ -3,9 +3,10 @@ import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
 import { removeReminder } from "./medstore.js";
 import { sendWhatsApp } from "./whatsapp.js";
-const redisUrl = String(process.env.REDIS_URL).trim();
+const redisUrl = process.env.REDIS_URL?.trim();
 
-// Initialize connection with appropriate configuration for BullMQ
+console.log("REDIS_URL =", redisUrl);
+
 const connection = new Redis(redisUrl, {
   maxRetriesPerRequest: null,
 });
