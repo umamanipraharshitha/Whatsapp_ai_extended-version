@@ -17,17 +17,27 @@ async function ensureCollection(collectionName, vectorSize = 768) {
   try {
     const collections = await client.getCollections();
     const exists = collections.collections.some(c => c.name === collectionName);
+
     if (!exists) {
-      console.log(`Creating Qdrant collection: "${collectionName}" with vector size ${vectorSize}...`);
+      console.log(`Creating Qdrant collection: "${collectionName}"`);
+
       await client.createCollection(collectionName, {
         vectors: {
           size: vectorSize,
           distance: "Cosine",
         },
       });
+
+      // 🔥 ADD THIS: create index for filtering
+      await client.createPayloadIndex(collectionName, {
+        field_name: "userId",
+        field_schema: "keyword",
+      });
+
+      console.log(`Created index for userId in ${collectionName}`);
     }
   } catch (err) {
-    console.error(`❌ Error ensuring collection ${collectionName} in Qdrant:`, err);
+    console.error(`❌ Error ensuring collection ${collectionName}:`, err);
     throw err;
   }
 }
