@@ -1,47 +1,85 @@
 // src/services/remainders.js
-import { Queue, Worker } from "bullmq";
-import Redis from "ioredis";
+import { Redis } from "@upstash/redis";
+import schedule from "node-schedule";
 import { removeReminder } from "./medstore.js";
 import { sendWhatsApp } from "./whatsapp.js";
-const redisUrl = process.env.REDIS_URL?.trim();
 
-const connection = new Redis(redisUrl, {
-  maxRetriesPerRequest: null,
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL?.trim(),
+  token: process.env.UPSTASH_REDIS_REST_TOKEN?.trim(),
 });
 
-// Create Queue
-const reminderQueue = new Queue("whatsapp-reminders", { connection });
+const activeJobs = new Map();
 
 /**
- * Start reminder worker listener
+ * Start reminder worker listener / rescheduler
  */
 export async function startReminderWorker() {
-  console.log("⏳ Starting BullMQ reminder worker...");
+  console.log("⏳ Starting Node-Schedule reminder worker...");
 
-  const worker = new Worker(
-    "whatsapp-reminders",
-    async (job) => {
-      const { to, text } = job.data;
-      console.log(`⏰ [BullMQ] Reminder fired for ${to}: "${text}"`);
-
-      // Send message
-      await sendWhatsApp({ to, text });
-
-      // Clean up Firestore record for one-time reminders
-      if (job.opts?.delay) {
-        await removeReminder(to, job.id);
+  try {
+    const allJobs = await redis.hgetall("whatsapp_active_reminders");
+    if (allJobs) {
+      console.log(`📋 Found ${Object.keys(allJobs).length} reminders in Upstash Redis. Rescheduling...`);
+      for (const [jobId, jobDataStr] of Object.entries(allJobs)) {
+        try {
+          const jobData = typeof jobDataStr === "string" ? JSON.parse(jobDataStr) : jobDataStr;
+          await scheduleJobInMemory(jobData);
+        } catch (err) {
+          console.error(`❌ Failed to reschedule job ${jobId}:`, err);
+        }
       }
-    },
-    { connection }
-  );
+    }
+    console.log("✅ Node-Schedule reminder worker is ready and initialized.");
+  } catch (err) {
+    console.error("❌ Failed to initialize reminders from Upstash Redis:", err);
+  }
+}
 
-  worker.on("ready", () => {
-    console.log("✅ BullMQ reminder worker is ready and listening to Redis.");
-  });
+/**
+ * Helper to schedule a job in memory using node-schedule
+ */
+async function scheduleJobInMemory(jobData) {
+  const { to, text, sendAt, cron, jobId } = jobData;
 
-  worker.on("failed", (job, err) => {
-    console.error(`❌ BullMQ job ${job?.id} failed:`, err);
-  });
+  // If there's an existing job, cancel it first
+  if (activeJobs.has(jobId)) {
+    activeJobs.get(jobId).cancel();
+  }
+
+  if (sendAt) {
+    const runDate = new Date(sendAt);
+    if (runDate.getTime() <= Date.now()) {
+      // Run immediately if it was missed
+      console.log(`⏱️ Job ${jobId} was scheduled in the past (${sendAt}). Running immediately.`);
+      executeJob(jobData);
+    } else {
+      const job = schedule.scheduleJob(runDate, () => executeJob(jobData));
+      if (job) {
+        activeJobs.set(jobId, job);
+      }
+    }
+  } else if (cron) {
+    const job = schedule.scheduleJob(cron, () => executeJob(jobData));
+    if (job) {
+      activeJobs.set(jobId, job);
+    }
+  }
+}
+
+async function executeJob(jobData) {
+  const { to, text, sendAt, jobId } = jobData;
+  console.log(`⏰ [Node-Schedule] Reminder fired for ${to}: "${text}"`);
+  try {
+    await sendWhatsApp({ to, text });
+    if (sendAt) {
+      // Clean up one-time reminder
+      await cancelReminder(jobId);
+      await removeReminder(to, jobId);
+    }
+  } catch (err) {
+    console.error(`❌ Failed to execute scheduled reminder ${jobId}:`, err);
+  }
 }
 
 /**
@@ -49,37 +87,23 @@ export async function startReminderWorker() {
  */
 export async function scheduleMedicationReminder({ to, text, sendAt, cron, meta }) {
   const jobId = `${to}-${Date.now()}`;
+  const jobData = { to, text, sendAt, cron, meta, jobId };
 
   try {
+    // Save to Upstash Redis for persistence
+    await redis.hset("whatsapp_active_reminders", { [jobId]: JSON.stringify(jobData) });
+
+    // Schedule in memory
+    await scheduleJobInMemory(jobData);
+
     if (sendAt) {
-      const delay = Math.max(0, new Date(sendAt).getTime() - Date.now());
-      console.log(`⏱️ Queuing delayed job for ${to} in ${delay}ms`);
-
-      const job = await reminderQueue.add(
-        "reminder-job",
-        { to, text },
-        { delay, jobId }
-      );
-
-      return { jobId: job.id, type: "once", sendAt };
+      return { jobId, type: "once", sendAt };
     }
-
     if (cron) {
-      console.log(`⏱️ Queuing repeatable cron job for ${to}: "${cron}"`);
-
-      const job = await reminderQueue.add(
-        "reminder-job",
-        { to, text },
-        {
-          repeat: { pattern: cron },
-          jobId
-        }
-      );
-
-      return { jobId: job.id, type: "cron", cron };
+      return { jobId, type: "cron", cron };
     }
   } catch (err) {
-    console.error("❌ Failed to add job to BullMQ queue:", err);
+    console.error("❌ Failed to schedule reminder:", err);
     throw err;
   }
 
@@ -93,21 +117,34 @@ export async function cancelReminder(jobId) {
   try {
     let canceled = false;
 
-    // 1. Try to delete one-off delayed job
-    const job = await reminderQueue.getJob(jobId);
+    // Remove from node-schedule in memory
+    const job = activeJobs.get(jobId);
     if (job) {
-      await job.remove();
+      job.cancel();
+      activeJobs.delete(jobId);
       canceled = true;
-      console.log(`🗑️ Removed one-off job ${jobId} from queue.`);
     }
 
-    // 2. Clear repeatable cron rules matching the ID
-    const repeatableJobs = await reminderQueue.getRepeatableJobs();
-    for (const rj of repeatableJobs) {
-      if (rj.id === jobId || rj.key.includes(jobId)) {
-        await reminderQueue.removeRepeatableByKey(rj.key);
-        canceled = true;
-        console.log(`🗑️ Removed repeatable cron rule ${rj.key}`);
+    // Remove from Upstash Redis
+    const deletedCount = await redis.hdel("whatsapp_active_reminders", jobId);
+    if (deletedCount > 0) {
+      canceled = true;
+    }
+
+    // Also support repeatable jobs check
+    const allJobs = await redis.hgetall("whatsapp_active_reminders");
+    if (allJobs) {
+      for (const [existingJobId, jobDataStr] of Object.entries(allJobs)) {
+        if (existingJobId === jobId || existingJobId.includes(jobId)) {
+          const inMemJob = activeJobs.get(existingJobId);
+          if (inMemJob) {
+            inMemJob.cancel();
+            activeJobs.delete(existingJobId);
+          }
+          await redis.hdel("whatsapp_active_reminders", existingJobId);
+          canceled = true;
+          console.log(`🗑️ Removed repeatable cron rule ${existingJobId}`);
+        }
       }
     }
 
