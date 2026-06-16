@@ -5,7 +5,7 @@ A WhatsApp-based AI assistant that combines medication reminders with Retrieval-
 **🔗 Live Demo**
 - Frontend (Dashboard): [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)
 - Backend (API): [whatsapp-ai-extended-version-2.onrender.com](https://whatsapp-ai-extended-version-2.onrender.com)
-- WhatsApp Sandbox Number: `whatsapp:+14155238886` (Twilio Sandbox)( Sandbox code : join promised-nearby)
+- WhatsApp Sandbox Number: `whatsapp:+14155238886` (Twilio Sandbox)
 
 ## 🚀 Features
 
@@ -229,20 +229,18 @@ vercel --prod
 
 ## 💻 Usage & Screenshots
 
-### 1. Scheduling a Reminder
-`[Add screenshot: reminder scheduling flow on WhatsApp]`
+### 1. Whatsapp Screenshots:
+## 📸 Demo
 
-### 2. Console Logs
-`[Add screenshot: server console output on Render]`
+<p align="center">
+  <img src="./screenshot/demo.png" width="48%" alt="WhatsApp AI Assistant">
+  <img src="./screenshot/demo2.png" width="48%" alt="RAG Response Demo">
+</p>
 
-### 3. RAG-based Answer
-User asks: *"What are the side effects of Paracetamol?"*
-AI replies with a context-grounded answer from the medical knowledge base.
-`[Add screenshot: WhatsApp RAG response]`
 
-### 4. Web Dashboard
+### 2. Web Dashboard
 Live at [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)
-`[Add screenshot: Vercel-hosted frontend dashboard]`
+
 
 ## 🌟 Highlights
 
