@@ -5,7 +5,7 @@ A WhatsApp-based AI assistant that combines medication reminders with Retrieval-
 **🔗 Live Demo**
 - Frontend (Dashboard): [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)
 - Backend (API): [whatsapp-ai-extended-version-2.onrender.com](https://whatsapp-ai-extended-version-2.onrender.com)
-- WhatsApp Sandbox Number: `whatsapp:+14155238886` (Twilio Sandbox)
+- WhatsApp Sandbox Number: `whatsapp:+14155238886` (Twilio Sandbox)( Sandbox code : join promised-nearby)
 
 ## 🚀 Features
 
