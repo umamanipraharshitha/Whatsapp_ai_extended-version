@@ -1,4 +1,4 @@
-# WhatsApp AI Health Assistant (RAG + Reminders)
+# WhatsApp AI Assistant (RAG + Reminders)
 
 A WhatsApp-based AI assistant that combines medication reminders with Retrieval-Augmented Generation (RAG) for health Q&A. Users can schedule, list, and cancel reminders via WhatsApp while asking health-related questions answered from a medical knowledge base.
 
@@ -10,10 +10,10 @@ A WhatsApp-based AI assistant that combines medication reminders with Retrieval-
 ## 🚀 Features
 
 ### Medication Reminders
-- Schedule reminders using natural language (e.g., "Remind me to take 2 tablets of Paracetamol at 9 AM tomorrow")
+- Schedule reminders using natural language (e.g., "Remind me to study at 5 pm ")
 - List all scheduled reminders with IDs
 - Cancel reminders by ID
-- Automatic per-user persistence of medications and reminders
+- Automatic per-user persistence of reminders
 - Powered by **BullMQ** + **Upstash Redis** for reliable, distributed job scheduling
 
 ### Health Q&A (RAG)
