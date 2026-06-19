@@ -3,7 +3,7 @@
 A WhatsApp-based AI assistant that combines medication reminders with Retrieval-Augmented Generation (RAG) for health Q&A. Users can schedule, list, and cancel reminders via WhatsApp while asking health-related questions answered from a medical knowledge base.
 
 **🔗 Live Demo**
-- Frontend (Dashboard): [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)
+- Frontend (Dashboard): [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)(currently expanding)
 - Backend (API): [whatsapp-ai-extended-version-2.onrender.com](https://whatsapp-ai-extended-version-2.onrender.com)
 - WhatsApp Sandbox Number: `whatsapp:+14155238886` (Twilio Sandbox)
 
