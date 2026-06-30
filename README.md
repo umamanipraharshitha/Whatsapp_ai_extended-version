@@ -1,6 +1,8 @@
 # WhatsApp AI Assistant (RAG + Reminders)
 
 A WhatsApp-based AI assistant that combines medication reminders with Retrieval-Augmented Generation (RAG) for health Q&A. Users can schedule, list, and cancel reminders via WhatsApp while asking health-related questions answered from a medical knowledge base.
+Built a scalable WhatsApp AI Assistant using Node.js, Express.js, Google Gemini, Qdrant, BullMQ, Upstash Redis, and Firebase, implementing 4 AI-powered workflows—Retrieval-Augmented Generation (RAG), document ingestion with OCR, conversational AI, and distributed reminder scheduling—through an asynchronous, event-driven backend architecture.
+Validated backend scalability using k6, simulating 50 concurrent virtual users over 30 seconds, processing 153 successful requests with 0% request failures, and identifying external LLM inference latency as the primary system bottleneck through performance analysis.
 
 **🔗 Live Demo**
 - Frontend (Dashboard): [whatsapp-ai-extended-version.vercel.app](https://whatsapp-ai-extended-version.vercel.app/)(currently expanding)
